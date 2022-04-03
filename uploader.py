@@ -1,76 +1,93 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
-
-import os
-import sys
-import helper
-import commands
+import codecs
 import hashlib
-import time
+import io
+import json
+import os
+import subprocess
+from datetime import datetime
+
+import requests
+
+import helper
+
+
+def past_pasteboard_content():
+    """
+    粘贴剪贴板内容
+    :return:
+    """
+    write_command = (
+        'osascript -e \'tell application '
+        '"System Events" to keystroke "v" using command down\''
+    )
+    os.system(write_command)
+
+
+def set_clipboard_data(data: bytes):
+    """
+    内容复制到剪贴板
+    :param data:
+    :return:
+    """
+    p = subprocess.Popen(['pbcopy'], stdin=subprocess.PIPE)
+    p.stdin.write(data)
+    p.stdin.close()
+    p.communicate()
+
 
 class Uploader:
+    __file = None
+    # 访问加速
+    __MARKDOWN_IMG_URL = '![{}](https://cdn.jsdelivr.net/gh/{}/{}/{})'
 
-	__file = None
+    def __init__(self, file):
+        self.__file = file
+        self.github_token = os.environ.get('github_token')
+        self.github_repo = os.environ.get('github_repo')
+        self.run()
 
-	project_path = ''
-	github_username = ''
-	github_repo = ''
+    def run(self):
+        helper.notify('Uploading', 'Please wait for a while')
+        # 图片后缀
+        file_path, point, suffix = self.__file.filename.rpartition('.')
+        # 图片格式
+        file_format = self.__file.format
 
-	# default master branch
-	# __MARKDOWN_IMG_URL = '![{}](https://github.com/{}/{}/raw/master/{})';
-	__MARKDOWN_IMG_URL = '![{}](https://cdn.jsdelivr.net/gh/{}/{}/{})';
+        img_bytes = io.BytesIO()
+        self.__file.save(img_bytes, file_format)
+        # Convert bytes to base64
+        base64_data = codecs.encode(img_bytes.getvalue(), 'base64')
+        # Convert base64 data to a string
+        base64_text = codecs.decode(base64_data, 'ascii')
+        md5hash = hashlib.md5(base64_data).hexdigest()
+        # Get image
+        filename = md5hash + '.' + suffix
+        self.upload_github(filename, base64_text)
 
+    def upload_github(self, filename, content):
+        year_path = datetime.now().strftime("%Y")
+        url = "https://api.github.com/repos/{}/contents/{}/".format(self.github_repo, year_path) + filename
+        headers = {"Accept": "application/vnd.github.v3+json", "Authorization": "token " + self.github_token}
+        data = {
+            "message": "upload pictures",
+            "content": content
+        }
+        data = json.dumps(data)
+        result = requests.put(url=url, data=data, headers=headers)
+        if result.status_code == 201:
+            result.encoding = "utf-8"
+            markdown_url = self.__MARKDOWN_IMG_URL.format(filename, self.github_repo, year_path, filename)
+            helper.notify('Success', markdown_url)
 
-	def __init__(self, file):
-		self.__file = file
-		self.project_path = os.environ.get('project_path')
-		self.github_username = os.environ.get('github_username')
-		self.github_repo = os.environ.get('github_repo')
+            # 调用系统剪贴板并粘贴
+            # set_clipboard_data(bytes(markdown_url, 'utf8'))
+            # past_pasteboard_content()
 
-		self.run()
-
-	def run(self):
-
-		helper.notify('Uploading','Please wait for a while')
-
-		# Image suffix
-		a,b,suffix = self.__file.filename.rpartition('.')
-
-
-		# Get image
-		filename = str(hashlib.md5(self.__file.filename).hexdigest())+str(int(time.time()))+'.'+suffix
-		self.__file.save(self.project_path+'/'+filename)
-
-		# Git
-		cmd = '''
-		cd {}
-		git add .
-		git commit -m 'clipboard'
-		git push'''.format(self.project_path)
-
-		a,b = commands.getstatusoutput(cmd)
-
-		if a == 0:
-			self.__write_to_doc(filename)
-			helper.notify('Success','Upload success')
-		else:
-			# Alfred workflow debugger console
-			sys.stderr.write(str(b))
-			helper.notify('Error','Git error')
-
-	def __write_to_doc(self, filename):
-		remote_url = self.__MARKDOWN_IMG_URL.format(filename,self.github_username,self.github_repo,filename)
-		os.system('echo "{}"|pbcopy'.format(remote_url))
-		a,b = commands.getstatusoutput('pbpaste')
-		self.print_pasteboard_content()
-
-	# this func is forked from `kaito-kidd/markdown-image-alfred` thanks
-	def print_pasteboard_content(self):
-	    """从剪贴板打印出内容"""
-	    write_command = (
-	        'osascript -e \'tell application '
-	        '"System Events" to keystroke "v" using command down\''
-	    )
-	    os.system(write_command)
-
-
+            # 打印结果，由 workflow 复制粘贴
+            print(markdown_url)
+        else:
+            err_msg = result.text
+            helper.red(err_msg)
+            helper.notify('Error', result.reason)
