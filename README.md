@@ -24,8 +24,8 @@ Alfred + Mac
 
 ## 工作原理
 1. 使用Alfred热键功能触发Workflow工作流程，执行Python脚本。
-2. 使用Pillow模块从剪贴板Clipboard中获取`jpg/png`图片文件，并且移动到`project_path`目录下
-3. 提交`project_path`目录下的文件到github仓库
+2. 使用Pillow模块从剪贴板Clipboard中获取`jpg/png`图片文件，并通过 GitHub api 上传
+3. 将打印的加速路径直接复制到粘贴板并粘贴
 
 ## 安装
 

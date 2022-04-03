@@ -39,13 +39,12 @@ def set_clipboard_data(data: bytes):
 
 class Uploader:
     __file = None
-    # 访问加速
-    __MARKDOWN_IMG_URL = '![{}](https://cdn.jsdelivr.net/gh/{}/{}/{})'
 
     def __init__(self, file):
         self.__file = file
         self.github_token = os.environ.get('github_token')
         self.github_repo = os.environ.get('github_repo')
+        self.github_cdn_url = os.environ.get('github_cdn_url')
         self.run()
 
     def run(self):
@@ -78,7 +77,7 @@ class Uploader:
         result = requests.put(url=url, data=data, headers=headers)
         if result.status_code == 201:
             result.encoding = "utf-8"
-            markdown_url = self.__MARKDOWN_IMG_URL.format(filename, self.github_repo, year_path, filename)
+            markdown_url = self.github_cdn_url.format(filename, self.github_repo, year_path, filename)
             helper.notify('Success', markdown_url)
 
             # 调用系统剪贴板并粘贴
