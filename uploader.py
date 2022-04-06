@@ -44,6 +44,7 @@ class Uploader:
         self.__file = file
         self.github_token = os.environ.get('github_token')
         self.github_repo = os.environ.get('github_repo')
+        self.custom_date_formate = os.environ.get('custom_date_formate')
         self.github_cdn_url = os.environ.get('github_cdn_url')
         self.run()
 
@@ -66,8 +67,8 @@ class Uploader:
         self.upload_github(filename, base64_text)
 
     def upload_github(self, filename, content):
-        year_path = datetime.now().strftime("%Y")
-        url = "https://api.github.com/repos/{}/contents/{}/".format(self.github_repo, year_path) + filename
+        custom_date_path = datetime.now().strftime(self.custom_date_formate)
+        url = "https://api.github.com/repos/{}/contents/{}/".format(self.github_repo, custom_date_path) + filename
         headers = {"Accept": "application/vnd.github.v3+json", "Authorization": "token " + self.github_token}
         data = {
             "message": "upload pictures",
@@ -77,7 +78,8 @@ class Uploader:
         result = requests.put(url=url, data=data, headers=headers)
         if result.status_code == 201:
             result.encoding = "utf-8"
-            markdown_url = self.github_cdn_url.format(filename, self.github_repo, year_path, filename)
+            markdown_url = self.github_cdn_url.format(filename=filename, github_repo=self.github_repo,
+                                                      custom_date_path=custom_date_path)
             helper.notify('Success', markdown_url)
 
             # 调用系统剪贴板并粘贴
